@@ -2,7 +2,6 @@
 #include "ast.h"
 #include <algorithm>
 #include <cctype>
-#include <sstream>
 
 namespace e2asm {
 
