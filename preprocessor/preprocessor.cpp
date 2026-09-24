@@ -38,6 +38,8 @@ Preprocessor::PreprocessResult Preprocessor::process(const std::string& source, 
     for (size_t i = 0; i < lines.size(); ++i) {
         std::string current_line = lines[i];
         size_t line_num = i + 1;
+        const size_t first_line = i;
+        const size_t emitted_before = m_output_lines.size();
 
         // Handle line continuation (\)
         while (!current_line.empty() && current_line.back() == '\\') {
@@ -60,11 +62,7 @@ Preprocessor::PreprocessResult Preprocessor::process(const std::string& source, 
             if (!m_recording_macro && (m_conditional_stack.empty() || m_conditional_stack.back().is_true)) {
                 m_output_lines.push_back(current_line);
             }
-            continue;
-        }
-
-        // Check if this is a directive
-        if (isDirective(current_line)) {
+        } else if (isDirective(current_line)) {
             std::string directive = getDirectiveName(current_line);
 
             // Handle directives
@@ -114,6 +112,15 @@ Preprocessor::PreprocessResult Preprocessor::process(const std::string& source, 
                 std::string expanded = expandDefines(current_line);
                 m_output_lines.push_back(expanded);
             }
+        }
+
+        // Emit one output line per consumed source line so later phases report
+        // line numbers of the original source. Directives, continuations, macro
+        // bodies and excluded conditional blocks would otherwise shift every
+        // following line. (An %include still inserts its own lines.)
+        const size_t consumed = i - first_line + 1;
+        for (size_t n = m_output_lines.size() - emitted_before; n < consumed; ++n) {
+            m_output_lines.emplace_back();
         }
     }
 
