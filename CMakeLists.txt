@@ -51,7 +51,14 @@ foreach(dir ${E2ASM_SOURCE_FOLDERS})
   list(APPEND E2ASM_HEADERS ${headers})
 endforeach()
 
-add_library(e2asm STATIC ${E2ASM_SOURCES} ${E2ASM_HEADERS})
+option(E2ASM_SHARED "Build e2asm as a shared library" ${BUILD_SHARED_LIBS})
+if(E2ASM_SHARED)
+  add_library(e2asm SHARED ${E2ASM_SOURCES} ${E2ASM_HEADERS})
+  # The API is plain C++ classes without export macros.
+  set_target_properties(e2asm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+else()
+  add_library(e2asm STATIC ${E2ASM_SOURCES} ${E2ASM_HEADERS})
+endif()
 
 target_compile_features(e2asm PUBLIC cxx_std_20)
 
