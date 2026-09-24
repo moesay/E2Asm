@@ -1,8 +1,21 @@
 #include "lexer.h"
 #include <cctype>
 #include <algorithm>
+#include <charconv>
+#include <optional>
 
 namespace e2asm {
+
+// Parses an integer literal without throwing: "0x" with no digits or a value
+// that overflows int64_t yields std::nullopt instead of an exception.
+static std::optional<int64_t> parseInteger(const std::string& digits, int base) {
+    int64_t value = 0;
+    const auto [ptr, ec] = std::from_chars(digits.data(), digits.data() + digits.size(), value, base);
+    if (ec != std::errc()) {
+        return std::nullopt;
+    }
+    return value;
+}
 
 static std::string toUpper(std::string str) {
     std::transform(str.begin(), str.end(), str.begin(), ::toupper);
@@ -225,9 +238,12 @@ Token Lexer::scanNumber() {
             advance();
         }
         std::string num_str(m_source.substr(start + 1, m_current - start - 1));
-        int64_t value = std::stoll(num_str, nullptr, 16);
+        const std::optional<int64_t> value = parseInteger(num_str, 16);
+        if (!value) {
+            return Token(TokenType::INVALID, std::string(m_source.substr(start, m_current - start)), loc);
+        }
         return Token(TokenType::NUMBER, std::string(m_source.substr(start, m_current - start)),
-                    value, loc);
+                    *value, loc);
     }
 
     // Check for 0x prefix (hex)
@@ -238,9 +254,12 @@ Token Lexer::scanNumber() {
             advance();
         }
         std::string num_str(m_source.substr(start + 2, m_current - start - 2));
-        int64_t value = std::stoll(num_str, nullptr, 16);
+        const std::optional<int64_t> value = parseInteger(num_str, 16);
+        if (!value) {
+            return Token(TokenType::INVALID, std::string(m_source.substr(start, m_current - start)), loc);
+        }
         return Token(TokenType::NUMBER, std::string(m_source.substr(start, m_current - start)),
-                    value, loc);
+                    *value, loc);
     }
 
     // Check for 0b prefix (binary)
@@ -255,9 +274,12 @@ Token Lexer::scanNumber() {
                 advance();
             }
             std::string num_str(m_source.substr(start + 2, m_current - start - 2));
-            int64_t value = std::stoll(num_str, nullptr, 2);
+            const std::optional<int64_t> value = parseInteger(num_str, 2);
+            if (!value) {
+                return Token(TokenType::INVALID, std::string(m_source.substr(start, m_current - start)), loc);
+            }
             return Token(TokenType::NUMBER, std::string(m_source.substr(start, m_current - start)),
-                        value, loc);
+                        *value, loc);
         }
         // If no binary digits follow, fall through to hex suffix parsing
     }
@@ -274,9 +296,12 @@ Token Lexer::scanNumber() {
                 advance();
             }
             std::string num_str(m_source.substr(start + 2, m_current - start - 2));
-            int64_t value = std::stoll(num_str, nullptr, 8);
+            const std::optional<int64_t> value = parseInteger(num_str, 8);
+            if (!value) {
+                return Token(TokenType::INVALID, std::string(m_source.substr(start, m_current - start)), loc);
+            }
             return Token(TokenType::NUMBER, std::string(m_source.substr(start, m_current - start)),
-                        value, loc);
+                        *value, loc);
         }
         // If no octal digits follow, fall through to hex suffix parsing
     }
@@ -291,29 +316,41 @@ Token Lexer::scanNumber() {
         // Hex suffix
         advance();
         std::string num_str(m_source.substr(start, m_current - start - 1));
-        int64_t value = std::stoll(num_str, nullptr, 16);
+        const std::optional<int64_t> value = parseInteger(num_str, 16);
+        if (!value) {
+            return Token(TokenType::INVALID, std::string(m_source.substr(start, m_current - start)), loc);
+        }
         return Token(TokenType::NUMBER, std::string(m_source.substr(start, m_current - start)),
-                    value, loc);
+                    *value, loc);
     } else if (suffix == 'b' || suffix == 'B') {
         // Binary suffix
         advance();
         std::string num_str(m_source.substr(start, m_current - start - 1));
-        int64_t value = std::stoll(num_str, nullptr, 2);
+        const std::optional<int64_t> value = parseInteger(num_str, 2);
+        if (!value) {
+            return Token(TokenType::INVALID, std::string(m_source.substr(start, m_current - start)), loc);
+        }
         return Token(TokenType::NUMBER, std::string(m_source.substr(start, m_current - start)),
-                    value, loc);
+                    *value, loc);
     } else if (suffix == 'o' || suffix == 'O' || suffix == 'q' || suffix == 'Q') {
         // Octal suffix
         advance();
         std::string num_str(m_source.substr(start, m_current - start - 1));
-        int64_t value = std::stoll(num_str, nullptr, 8);
+        const std::optional<int64_t> value = parseInteger(num_str, 8);
+        if (!value) {
+            return Token(TokenType::INVALID, std::string(m_source.substr(start, m_current - start)), loc);
+        }
         return Token(TokenType::NUMBER, std::string(m_source.substr(start, m_current - start)),
-                    value, loc);
+                    *value, loc);
     }
 
     // Default is decimal
     std::string num_str(m_source.substr(start, m_current - start));
-    int64_t value = std::stoll(num_str, nullptr, 10);
-    return Token(TokenType::NUMBER, num_str, value, loc);
+    const std::optional<int64_t> value = parseInteger(num_str, 10);
+    if (!value) {
+        return Token(TokenType::INVALID, num_str, loc);
+    }
+    return Token(TokenType::NUMBER, num_str, *value, loc);
 }
 
 Token Lexer::scanIdentifier() {
